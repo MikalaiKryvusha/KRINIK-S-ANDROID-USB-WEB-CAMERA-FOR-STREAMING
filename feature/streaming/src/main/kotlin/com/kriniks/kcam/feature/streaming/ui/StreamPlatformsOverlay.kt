@@ -1,0 +1,322 @@
+/**
+ * StreamPlatformsOverlay — modal bottom-sheet for managing streaming platforms.
+ *
+ * Shows a list of configured platform profiles (YouTube, Twitch, etc.)
+ * each with enable/disable toggle, edit action, and delete swipe.
+ * Opening the edit form lets the user change stream key, RTMP URL, resolution.
+ *
+ * Settings in this overlay are identical to those in SettingsScreen (Q3 answer).
+ * Both read/write the same ProfilesRepository — changes are instant and synced.
+ *
+ * Related: StreamViewModel, StreamProfile (:data:profiles), SettingsScreen
+ */
+
+package com.kriniks.kcam.feature.streaming.ui
+
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.kriniks.kcam.data.profiles.model.StreamPlatform
+import com.kriniks.kcam.data.profiles.model.StreamProfile
+
+private val AcidPink = Color(0xFFFF1A8C)
+private val DarkSurface = Color(0xFF1A1A1A)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StreamPlatformsOverlay(
+    profiles: List<StreamProfile>,
+    activeProfileId: Long?,
+    onDismiss: () -> Unit,
+    onSelectProfile: (StreamProfile) -> Unit,
+    onSaveProfile: (StreamProfile) -> Unit,
+    onDeleteProfile: (StreamProfile) -> Unit,
+    onStartStream: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var editingProfile by remember { mutableStateOf<StreamProfile?>(null) }
+    var showAddNew by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding(),
+        ) {
+            // ── Header ─────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Platforms",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                IconButton(onClick = { showAddNew = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add platform", tint = AcidPink)
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── Profile list ──────────────────────────────────────────
+            if (profiles.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "No platforms configured.\nTap + to add YouTube, Twitch, etc.",
+                        color = Color(0xFF888888),
+                        fontSize = 14.sp,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(profiles, key = { it.id }) { profile ->
+                        PlatformCard(
+                            profile = profile,
+                            isActive = profile.id == activeProfileId,
+                            onSelect = { onSelectProfile(profile) },
+                            onEdit = { editingProfile = profile },
+                            onToggle = { onSaveProfile(profile.copy(isEnabled = !profile.isEnabled)) },
+                            onDelete = { onDeleteProfile(profile) },
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+        }
+    }
+
+    // ── Edit / New profile form ────────────────────────────────────────
+    if (editingProfile != null || showAddNew) {
+        ProfileEditDialog(
+            initial = editingProfile ?: StreamProfile(
+                name = "YouTube",
+                platform = StreamPlatform.YOUTUBE,
+                rtmpUrl = StreamPlatform.YOUTUBE.defaultRtmpUrl,
+                streamKey = "",
+            ),
+            onSave = { profile ->
+                onSaveProfile(profile)
+                editingProfile = null
+                showAddNew = false
+            },
+            onDismiss = {
+                editingProfile = null
+                showAddNew = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun PlatformCard(
+    profile: StreamProfile,
+    isActive: Boolean,
+    onSelect: () -> Unit,
+    onEdit: () -> Unit,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val borderColor = if (isActive) AcidPink else Color(0xFF2A2A2A)
+    Card(
+        onClick = onSelect,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF232323)),
+        shape = RoundedCornerShape(10.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            if (isActive) 2.dp else 1.dp, borderColor,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(profile.name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${profile.platform.displayName}  ·  ${profile.videoWidth}x${profile.videoHeight}",
+                    color = Color(0xFF888888),
+                    fontSize = 12.sp,
+                )
+            }
+            Switch(
+                checked = profile.isEnabled,
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(checkedThumbColor = AcidPink, checkedTrackColor = AcidPink.copy(alpha = 0.4f)),
+            )
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF888888))
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFF555555))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileEditDialog(
+    initial: StreamProfile,
+    onSave: (StreamProfile) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initial.name) }
+    var platform by remember { mutableStateOf(initial.platform) }
+    var rtmpUrl by remember { mutableStateOf(initial.rtmpUrl) }
+    var streamKey by remember { mutableStateOf(initial.streamKey) }
+    var keyVisible by remember { mutableStateOf(false) }
+    var width by remember { mutableStateOf(initial.videoWidth.toString()) }
+    var height by remember { mutableStateOf(initial.videoHeight.toString()) }
+    var fps by remember { mutableStateOf(initial.videoFps.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        title = {
+            Text(if (initial.id == 0L) "New platform" else "Edit ${initial.name}",
+                color = Color.White, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Platform picker
+                PlatformDropdown(selected = platform, onSelect = { p ->
+                    platform = p
+                    rtmpUrl = p.defaultRtmpUrl
+                    if (name == initial.name || name == initial.platform.displayName) {
+                        name = p.displayName
+                    }
+                })
+
+                KcamTextField("Name", name) { name = it }
+                KcamTextField("RTMP URL", rtmpUrl) { rtmpUrl = it }
+
+                // Stream key with show/hide toggle
+                OutlinedTextField(
+                    value = streamKey,
+                    onValueChange = { streamKey = it },
+                    label = { Text("Stream key", color = Color(0xFF888888)) },
+                    singleLine = true,
+                    visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        IconButton(onClick = { keyVisible = !keyVisible }) {
+                            Icon(
+                                if (keyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null, tint = AcidPink,
+                            )
+                        }
+                    },
+                    colors = kcamTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    KcamTextField("Width", width, Modifier.weight(1f)) { width = it }
+                    KcamTextField("Height", height, Modifier.weight(1f)) { height = it }
+                    KcamTextField("FPS", fps, Modifier.weight(1f)) { fps = it }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(initial.copy(
+                        name = name.ifBlank { platform.displayName },
+                        platform = platform,
+                        rtmpUrl = rtmpUrl.ifBlank { platform.defaultRtmpUrl },
+                        streamKey = streamKey,
+                        videoWidth = width.toIntOrNull() ?: 1920,
+                        videoHeight = height.toIntOrNull() ?: 1080,
+                        videoFps = fps.toIntOrNull() ?: 30,
+                    ))
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AcidPink),
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color(0xFF888888)) }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlatformDropdown(selected: StreamPlatform, onSelect: (StreamPlatform) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = selected.displayName,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Platform", color = Color(0xFF888888)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            colors = kcamTextFieldColors(),
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
+            modifier = Modifier.background(DarkSurface)) {
+            StreamPlatform.entries.forEach { platform ->
+                DropdownMenuItem(
+                    text = { Text(platform.displayName, color = Color.White) },
+                    onClick = { onSelect(platform); expanded = false },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KcamTextField(label: String, value: String, modifier: Modifier = Modifier.fillMaxWidth(), onValueChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, color = Color(0xFF888888)) },
+        singleLine = true,
+        colors = kcamTextFieldColors(),
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun kcamTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color.White,
+    unfocusedTextColor = Color.White,
+    focusedBorderColor = AcidPink,
+    unfocusedBorderColor = Color(0xFF444444),
+    cursorColor = AcidPink,
+)

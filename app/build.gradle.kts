@@ -70,6 +70,12 @@ kotlin {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
+    implementation(project(":core:logging"))
+    implementation(project(":feature:usb"))
+    implementation(project(":feature:capture"))
+    implementation(project(":feature:codec"))
+    implementation(project(":feature:streaming"))
+    implementation(project(":data:profiles"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

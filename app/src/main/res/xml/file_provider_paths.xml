@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider path configuration for sharing log files.
+     Maps to context.getExternalFilesDir(null)/logs/ used by FileLogger. -->
+<paths>
+    <external-files-path name="logs" path="logs/" />
+</paths>

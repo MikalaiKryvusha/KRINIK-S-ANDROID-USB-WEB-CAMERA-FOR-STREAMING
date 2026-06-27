@@ -4,30 +4,38 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.kriniks.kcam.core.logging.FileLogger
 import com.kriniks.kcam.core.ui.theme.KrinikCamTheme
+import com.kriniks.kcam.feature.capture.DeviceManager
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Single entry-point activity for the entire app.
- * Uses Jetpack Compose + single NavHost pattern — all screens are composable destinations.
+ * Uses Jetpack Compose + single NavHost (KrinikCamNavGraph) as the UI backbone.
+ * All screens are composable destinations — no Fragment transactions.
  *
- * Marked with @AndroidEntryPoint to allow Hilt injection into this activity
- * and all composables within its composition tree.
+ * Injects DeviceManager and FileLogger so they can be passed down to screens
+ * without threading them through ViewModels.
  *
- * Related: KrinikCamTheme (core:ui), NavHost destinations added in Phase 1.
+ * Related: KrinikCamNavGraph, MainScreen, KrinikCamApp
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @Inject lateinit var deviceManager: DeviceManager
+    @Inject lateinit var fileLogger: FileLogger
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Make content draw behind system bars (status bar + navigation bar)
         enableEdgeToEdge()
 
         setContent {
             KrinikCamTheme {
-                // TODO Phase 1: replace with AppNavHost composable
+                KrinikCamNavGraph(
+                    deviceManager = deviceManager,
+                    fileLogger = fileLogger,
+                )
             }
         }
     }
