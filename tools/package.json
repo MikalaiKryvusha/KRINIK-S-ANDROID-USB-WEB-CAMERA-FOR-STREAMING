@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "setup":      "node setup.mjs",
-    "build":      "node build.mjs",
+    "build":         "node build.mjs",
     "build:release": "node build.mjs --release",
+    "build:ci":      "node build.mjs --no-ui",
     "commit":     "node commit.mjs",
     "release":    "node release.mjs",
     "release:major": "node release.mjs --major",
