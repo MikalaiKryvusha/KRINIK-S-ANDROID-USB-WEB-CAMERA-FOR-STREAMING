@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Launcher icon foreground — temporary placeholder.
+    Shows a stylised camera lens + "KC" letters on transparent background.
+    Replace with proper branded icon asset in Phase 1.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Camera body outline -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,38 L30,70 Q30,74 34,74 L74,74 Q78,74 78,70 L78,38 Q78,34 74,34 L60,34 L56,28 L52,28 L48,34 L34,34 Q30,34 30,38 Z" />
+
+    <!-- Camera lens circle -->
+    <path
+        android:fillColor="#FF1A8C"
+        android:pathData="M54,54 m-14,0 a14,14 0 1,0 28,0 a14,14 0 1,0 -28,0" />
+
+    <!-- Inner lens highlight -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0" />
+
+    <!-- Flash indicator dot -->
+    <path
+        android:fillColor="#FF1A8C"
+        android:pathData="M66,40 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+
+</vector>

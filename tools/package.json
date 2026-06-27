@@ -1,0 +1,19 @@
+{
+  "name": "kriniks-tools",
+  "version": "1.0.0",
+  "description": "KrinikCam build & release automation tools",
+  "type": "module",
+  "scripts": {
+    "setup":      "node setup.mjs",
+    "build":      "node build.mjs",
+    "build:release": "node build.mjs --release",
+    "commit":     "node commit.mjs",
+    "release":    "node release.mjs",
+    "release:major": "node release.mjs --major",
+    "release:dry": "node release.mjs --dry-run",
+    "readme-pdf": "node readme-pdf.mjs"
+  },
+  "dependencies": {
+    "md-to-pdf": "^5.2.4"
+  }
+}

@@ -1,0 +1,50 @@
+### Android ###
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.keystore
+*.jks
+
+### App build outputs ###
+app/build/
+core/*/build/
+feature/*/build/
+data/*/build/
+
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+### Kotlin ###
+*.class
+
+### Node.js tools ###
+tools/node_modules/
+tools/.npmrc
+
+### IntelliJ / Android Studio ###
+*.iws
+*.ipr
+.idea/
+*.tmproj
+.fleet/
+
+### macOS ###
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+### Generated ###
+README.pdf

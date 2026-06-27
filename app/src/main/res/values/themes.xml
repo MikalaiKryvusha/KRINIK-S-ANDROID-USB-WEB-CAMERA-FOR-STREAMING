@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Base activity theme — no action bar, dark window background.
+        Actual Material3 theming is handled by Compose's KrinikCamTheme in core:ui.
+        enableEdgeToEdge() in MainActivity manages status/nav bar transparency.
+    -->
+    <style name="Theme.KrinikCam" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

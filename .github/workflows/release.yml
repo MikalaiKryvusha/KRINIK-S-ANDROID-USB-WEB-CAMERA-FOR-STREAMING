@@ -1,0 +1,58 @@
+# Release workflow — triggered when release.mjs pushes a version tag (e.g. v0.2).
+# Builds a release APK and creates a GitHub Release with auto-generated notes.
+#
+# Triggered by: tools/release.mjs (git tag v*)
+# Output: GitHub Release with APK attached at
+#   github.com/MikalaiKryvusha/KRINIK-S-ANDROID-USB-WEB-CAMERA-FOR-STREAMING/releases
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # required to create GitHub Releases
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for release notes generation
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # Build release APK — signed with debug key for now.
+      # Production signing via keystore will be added when publishing to Play Store.
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      # Rename APK to include version tag for clarity in the release
+      - name: Rename APK
+        run: |
+          VERSION="${{ github.ref_name }}"
+          cp app/build/outputs/apk/release/app-release.apk "KrinikCam-${VERSION}.apk"
+
+      # Create GitHub Release with the APK attached and auto-generated notes
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "KrinikCam-${{ github.ref_name }}.apk"
+          generate_release_notes: true
+          name: "KrinikCam ${{ github.ref_name }}"
