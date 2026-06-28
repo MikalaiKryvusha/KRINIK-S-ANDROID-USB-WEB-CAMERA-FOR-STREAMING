@@ -21,6 +21,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -69,96 +70,117 @@ fun FloatingRadialMenu(
         add(RadialAction(Icons.Default.Settings, "Settings", Color.White, onOpenSettings))
     }
 
-    Box(
-        modifier = modifier
-            .padding(bottom = 32.dp, end = 24.dp)
-            .wrapContentSize(Alignment.BottomEnd),
-        contentAlignment = Alignment.BottomEnd,
-    ) {
-        // ── Action items (radiate upward when expanded) ───────────────
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(bottom = 72.dp),
-        ) {
-            actions.forEachIndexed { index, action ->
-                val scale by animateFloatAsState(
-                    targetValue = if (expanded) 1f else 0f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow,
-                        visibilityThreshold = 0.01f,
-                    ),
-                    label = "scale_$index",
-                )
-                val alpha by animateFloatAsState(
-                    targetValue = if (expanded) 1f else 0f,
-                    animationSpec = tween(150, delayMillis = index * 30),
-                    label = "alpha_$index",
-                )
+    // Outer Box fills the whole screen (caller passes Modifier.fillMaxSize()) so the
+    // tap-catcher scrim can cover everything. The FAB cluster itself is anchored bottom-end.
+    Box(modifier = modifier) {
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End,
-                    modifier = Modifier
-                        .alpha(alpha)
-                        .scale(scale),
-                ) {
-                    // Label pill — clickable so tapping the text works same as tapping the icon button
-                    Surface(
-                        color = Color(0xDD1A1A1A),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        // ── Tap-outside-to-dismiss scrim ──────────────────────────────
+        // Present ONLY while the menu is expanded, and fully transparent (no dimming),
+        // so it never intercepts touches to the live preview when the menu is closed.
+        // indication = null → no ripple flash across the screen on tap.
+        if (expanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { expanded = false },
+            )
+        }
+
+        // ── FAB cluster (radial action items + main FAB), anchored bottom-end ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 32.dp, end = 24.dp),
+            contentAlignment = Alignment.BottomEnd,
+        ) {
+            // ── Action items (radiate upward when expanded) ───────────────
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(bottom = 72.dp),
+            ) {
+                actions.forEachIndexed { index, action ->
+                    val scale by animateFloatAsState(
+                        targetValue = if (expanded) 1f else 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow,
+                            visibilityThreshold = 0.01f,
+                        ),
+                        label = "scale_$index",
+                    )
+                    val alpha by animateFloatAsState(
+                        targetValue = if (expanded) 1f else 0f,
+                        animationSpec = tween(150, delayMillis = index * 30),
+                        label = "alpha_$index",
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
                         modifier = Modifier
-                            .padding(end = 10.dp)
-                            .clickable { action.onClick(); expanded = false },
+                            .alpha(alpha)
+                            .scale(scale),
                     ) {
-                        Text(
-                            text = action.label,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        )
-                    }
-                    // Action button
-                    SmallFloatingActionButton(
-                        onClick = { action.onClick(); expanded = false },
-                        containerColor = Color(0xFF2A2A2A),
-                        contentColor = action.tint,
-                        shape = CircleShape,
-                    ) {
-                        Icon(action.icon, contentDescription = action.label, tint = action.tint)
+                        // Label pill — clickable so tapping the text works same as tapping the icon button
+                        Surface(
+                            color = Color(0xDD1A1A1A),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                            modifier = Modifier
+                                .padding(end = 10.dp)
+                                .clickable { action.onClick(); expanded = false },
+                        ) {
+                            Text(
+                                text = action.label,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            )
+                        }
+                        // Action button
+                        SmallFloatingActionButton(
+                            onClick = { action.onClick(); expanded = false },
+                            containerColor = Color(0xFF2A2A2A),
+                            contentColor = action.tint,
+                            shape = CircleShape,
+                        ) {
+                            Icon(action.icon, contentDescription = action.label, tint = action.tint)
+                        }
                     }
                 }
             }
-        }
 
-        // ── Main FAB ─────────────────────────────────────────────────
-        val fabColor = when {
-            streamState.isLive -> LiveRed
-            else -> AcidPink
-        }
-        val fabIcon = if (expanded) Icons.Default.Close else Icons.Default.Add
+            // ── Main FAB ─────────────────────────────────────────────────
+            val fabColor = when {
+                streamState.isLive -> LiveRed
+                else -> AcidPink
+            }
+            val fabIcon = if (expanded) Icons.Default.Close else Icons.Default.Add
 
-        FloatingActionButton(
-            onClick = { expanded = !expanded },
-            containerColor = fabColor,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier.size(60.dp),
-        ) {
-            // Live dot badge
-            if (streamState.isLive && !expanded) {
-                Box(
-                    Modifier
-                        .size(60.dp)
-                        .background(fabColor, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("LIVE", color = Color.White, fontSize = 13.sp,
-                        style = MaterialTheme.typography.labelMedium)
+            FloatingActionButton(
+                onClick = { expanded = !expanded },
+                containerColor = fabColor,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier.size(60.dp),
+            ) {
+                // Live dot badge
+                if (streamState.isLive && !expanded) {
+                    Box(
+                        Modifier
+                            .size(60.dp)
+                            .background(fabColor, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("LIVE", color = Color.White, fontSize = 13.sp,
+                            style = MaterialTheme.typography.labelMedium)
+                    }
+                } else {
+                    Icon(fabIcon, contentDescription = "Menu", modifier = Modifier.size(28.dp))
                 }
-            } else {
-                Icon(fabIcon, contentDescription = "Menu", modifier = Modifier.size(28.dp))
             }
         }
     }

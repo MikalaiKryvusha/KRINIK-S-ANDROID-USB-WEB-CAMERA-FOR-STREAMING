@@ -38,6 +38,9 @@ import com.kriniks.kcam.data.profiles.model.StreamProfile
 
 private val AcidPink = Color(0xFFFF1A8C)
 private val DarkSurface = Color(0xFF1A1A1A)
+// Dropdown popup needs a LIGHTER surface than the sheet/cards behind it (0xFF1A1A1A / 0xFF232323),
+// otherwise the open menu blends into the background and reads as low-contrast.
+private val DropdownSurface = Color(0xFF3A3A3A)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -289,7 +292,7 @@ private fun PlatformDropdown(selected: StreamPlatform, onSelect: (StreamPlatform
             modifier = Modifier.fillMaxWidth().menuAnchor(),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
-            modifier = Modifier.background(DarkSurface)) {
+            modifier = Modifier.background(DropdownSurface)) {
             StreamPlatform.entries.forEach { platform ->
                 DropdownMenuItem(
                     text = { Text(platform.displayName, color = Color.White) },
