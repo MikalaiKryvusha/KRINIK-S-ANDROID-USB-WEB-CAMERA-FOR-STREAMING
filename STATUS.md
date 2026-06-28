@@ -100,10 +100,11 @@
    диалог один раз с «использовать по умолчанию», закрывает Bug 3; фейд заглушка→камера — позже.
 2. Графика: app icon (`ic_launcher.svg` → mipmap-*), standby bitmap, notification icon
 3. Мелкие улучшения UX из фидбэка Криника:
-   - FAB закрытие тапом снаружи
-   - USB permission "запомнить" (`PendingIntent` с флагом)
-   - Dropdown платформ — контраст цветов
-   - Задержка перед standby (5 сек буфер + fade)
+   - ✅ FAB закрытие тапом снаружи (2026-06-28) — прозрачный scrim в `FloatingRadialMenu`
+   - ✅ Dropdown платформ — контраст цветов (2026-06-28) — `DropdownSurface` 0xFF3A3A3A в `StreamPlatformsOverlay`
+   - USB permission "запомнить" (`PendingIntent` с флагом) — см. интервью #004
+   - Задержка перед standby (5 сек буфер + fade) — см. интервью #004
+   - Кнопка "повторно запросить разрешения" в Settings
 
 Графика приложения ещё не создана:
 - [ ] App icon (`ic_launcher.svg` → mipmap-*)
