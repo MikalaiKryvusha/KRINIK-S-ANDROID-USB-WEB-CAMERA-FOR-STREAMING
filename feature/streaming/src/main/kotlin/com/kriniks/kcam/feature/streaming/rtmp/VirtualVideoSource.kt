@@ -19,7 +19,6 @@ package com.kriniks.kcam.feature.streaming.rtmp
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.os.Handler
 import android.os.HandlerThread
@@ -35,7 +34,7 @@ private const val VIRTUAL_FPS = 30L
 private const val FRAME_INTERVAL_MS = 1000L / VIRTUAL_FPS
 private const val ACID_PINK = 0xFFFF1A8C.toInt()
 
-class VirtualVideoSource : VideoSource() {
+class VirtualVideoSource : VideoSource(), RotatableSource {
 
     private var surface: Surface? = null
     private var drawThread: HandlerThread? = null
@@ -46,22 +45,38 @@ class VirtualVideoSource : VideoSource() {
     private var frameCount = 0L
     private var startMs = 0L
 
+    // Bug 10 (variant C): desired output rotation. The "sensor" content is ALWAYS landscape 16:9;
+    // for 90/270 we rotate it geometrically into the portrait buffer ourselves (see drawOnce).
+    @Volatile private var outputRotation = 0
+
     private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ACID_PINK; alpha = 180 }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE; textAlign = Paint.Align.CENTER
     }
 
+    override fun setOutputRotation(degrees: Int) {
+        outputRotation = ((degrees % 360) + 360) % 360
+        KLog.d(TAG, "outputRotation = $outputRotation")
+    }
+
     override fun create(width: Int, height: Int, fps: Int, rotation: Int): Boolean = true
 
     override fun start(surfaceTexture: SurfaceTexture) {
-        val w = if (width > 0) width else 1920
-        val h = if (height > 0) height else 1080
+        // Buffer = the size RootEncoder requested (the encoder canvas). For 90/270 the streamer asks
+        // for a PORTRAIT canvas (1080×1920); for 0/180 it's landscape (1920×1080). The producer
+        // Surface buffer matches the encoder 1:1, so with encoder rotation=0 the GL maps it without
+        // any scale → no distortion (Bug 10 variant C).
+        val bufW = if (width > 0) width else 1920
+        val bufH = if (height > 0) height else 1080
+        // The virtual "sensor" is ALWAYS 16:9 landscape (like a real webcam): render at LONG×SHORT.
+        // For a portrait buffer (90/270) we rotate this landscape frame into place ourselves (variant C).
+        val sensorW = maxOf(bufW, bufH)
+        val sensorH = minOf(bufW, bufH)
         try {
-            // Pre-render the static pattern once at the encoder size (no per-frame re-render cost).
-            staticFrame = VirtualFrameRenderer.renderStatic(w, h)
-            textPaint.textSize = h * 0.045f
+            staticFrame = VirtualFrameRenderer.renderStatic(sensorW, sensorH)
+            textPaint.textSize = sensorH * 0.045f
 
-            surfaceTexture.setDefaultBufferSize(w, h)
+            surfaceTexture.setDefaultBufferSize(bufW, bufH)
             surface = Surface(surfaceTexture)
             running = true
             startMs = SystemClock.elapsedRealtime()
@@ -71,43 +86,54 @@ class VirtualVideoSource : VideoSource() {
             drawThread = thread
             drawHandler = handler
 
-            val src = Rect(0, 0, w, h)
-            val dst = Rect(0, 0, w, h)
             val loop = object : Runnable {
                 override fun run() {
                     if (!running) return
-                    drawOnce(src, dst, w, h)
+                    drawOnce(bufW, bufH, sensorW, sensorH)
                     if (running) handler.postDelayed(this, FRAME_INTERVAL_MS)
                 }
             }
             handler.post(loop)
-            KLog.d(TAG, "Virtual camera started — ${w}x${h} @ ${VIRTUAL_FPS}fps")
+            KLog.d(TAG, "Virtual camera started — buffer ${bufW}x${bufH}, sensor ${sensorW}x${sensorH} @ ${VIRTUAL_FPS}fps")
         } catch (e: Exception) {
             KLog.e(TAG, "Failed to start virtual camera", e)
             running = false
         }
     }
 
-    /** Draw static pattern + moving sweep bar + live counter. */
-    private fun drawOnce(src: Rect, dst: Rect, w: Int, h: Int) {
+    /**
+     * Draw the landscape 16:9 sensor frame (+ live overlay) into the buffer, geometrically rotated by
+     * [outputRotation] so a portrait buffer is FILLED by the rotated landscape content with NO scale
+     * distortion (Bug 10 variant C). We always draw in SENSOR (landscape) coords; the canvas transform
+     * maps that to fill the buffer. Verified rotation mapping (90 CW): sensor (sx,sy) → (bufW−sy, sx).
+     */
+    private fun drawOnce(bufW: Int, bufH: Int, sensorW: Int, sensorH: Int) {
         val s = surface ?: return
         val bmp = staticFrame ?: return
         try {
             val canvas = s.lockCanvas(null) ?: return
-            canvas.drawBitmap(bmp, src, dst, null)
+            canvas.save()
+            when (outputRotation) {
+                90 -> { canvas.translate(bufW.toFloat(), 0f); canvas.rotate(90f) }
+                270 -> { canvas.translate(0f, bufH.toFloat()); canvas.rotate(270f) }
+                180 -> { canvas.translate(bufW.toFloat(), bufH.toFloat()); canvas.rotate(180f) }
+                else -> {} // 0° — draw landscape directly (buffer == sensor)
+            }
+            // From here everything is drawn in landscape SENSOR space (sensorW×sensorH).
+            canvas.drawBitmap(bmp, 0f, 0f, null)
 
             // Moving vertical sweep bar (left→right, wraps). Proves the frame is live.
-            val barW = w * 0.012f
+            val barW = sensorW * 0.012f
             val period = 3000f // ms for a full sweep
             val elapsed = (SystemClock.elapsedRealtime() - startMs).toFloat()
-            val bx = ((elapsed % period) / period) * w
-            canvas.drawRect(bx, 0f, bx + barW, h.toFloat(), barPaint)
+            val bx = ((elapsed % period) / period) * sensorW
+            canvas.drawRect(bx, 0f, bx + barW, sensorH.toFloat(), barPaint)
 
-            // Live counter: target FPS + frame # + elapsed seconds at the very bottom (Bug 11:
-            // below the static label). FPS label lets you see the virtual framerate at a glance.
+            // Live counter: target FPS + frame # + elapsed seconds at the very bottom (Bug 11).
             val secs = elapsed / 1000f
-            canvas.drawText("%d FPS · frame %d · %.1fs".format(VIRTUAL_FPS, frameCount, secs), w / 2f, h * 0.96f, textPaint)
+            canvas.drawText("%d FPS · frame %d · %.1fs".format(VIRTUAL_FPS, frameCount, secs), sensorW / 2f, sensorH * 0.96f, textPaint)
 
+            canvas.restore()
             s.unlockCanvasAndPost(canvas)
             frameCount++
         } catch (e: Exception) {
