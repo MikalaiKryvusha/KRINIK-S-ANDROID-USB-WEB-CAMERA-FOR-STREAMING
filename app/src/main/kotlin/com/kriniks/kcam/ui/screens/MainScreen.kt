@@ -152,7 +152,11 @@ fun MainScreen(
         // ── Layer 0: Viewfinder ──────────────────────────────────────
         when (activeSource) {
             is VideoSource.UvcCamera -> {
-                if (usbState.activeCamera != null) {
+                // Показываем GL-превью, когда физическая камера есть, ЛИБО пока идёт стрим. Во время
+                // стрима GL-пайплайн продолжает рисовать КОМПОЗИТ (заглушка вместо камеры + оверлеи),
+                // и превью обязано его ЗЕРКАЛИТЬ — иначе при пропаже камеры Compose-StandbyPlaceholder
+                // на весь экран рушит TextureView и прячет все слои (хотя в стрим композит идёт верно).
+                if (usbState.activeCamera != null || streamState.isActive) {
                     // rememberUpdatedState so the lambdas below always read the latest camera
                     // state even though the TextureView listener captures them by reference.
                     val currentCamera by rememberUpdatedState(usbState.activeCamera)
@@ -160,14 +164,16 @@ fun MainScreen(
                     UvcPreviewView(
                         onTextureViewReady = { tv ->
                             previewTextureView = tv
-                            // Sole trigger for startPreview — camera must already be set via setVideoSource.
-                            if (currentCamera != null) {
+                            // (Пере)подцепить превью: при наличии камеры — обычный старт; во время
+                            // стрима с пропавшей камерой startPreview просто переподцепляет surface к
+                            // уже работающему GL энкодера → показывает композит заглушка+оверлеи.
+                            if (currentCamera != null || streamState.isActive) {
                                 streamViewModel.startPreviewOnView(tv)
                             }
                         },
                         // Restart GL preview on rotation so the render surface gets new dimensions.
                         onSurfaceTextureSizeChanged = { tv, _, _ ->
-                            if (currentCamera != null) {
+                            if (currentCamera != null || streamState.isActive) {
                                 streamViewModel.startPreviewOnView(tv)
                             }
                         },
