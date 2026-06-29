@@ -38,6 +38,24 @@ class StreamingRepository @Inject constructor(
     /** Set the manual video rotation (preview + stream aspect). No-op while streaming. */
     fun setVideoRotation(degrees: Int): Boolean = rtmpStreamer.setVideoRotation(degrees)
 
+    // ── Мульти-источники (Idea 19) ──────────────────────────────────────────
+    /** Текущая сцена (список слоёв) — для панели «Слои». */
+    val scene: StateFlow<com.kriniks.kcam.feature.streaming.scene.Scene> = rtmpStreamer.scene
+
+    /**
+     * Добавить тестовый PNG-оверлей (первый заход, Q1=A): генерим бренд-бейдж и кладём слоем поверх.
+     * Доказывает пайплайн компоновки без файлов/SAF. [id]/[name] задаёт вызывающий (VM генерит id).
+     */
+    fun addTestOverlay(id: String, name: String) {
+        val bmp = com.kriniks.kcam.feature.streaming.scene.OverlayTestImage.render()
+        rtmpStreamer.addImageOverlay(id, name, bmp)
+    }
+
+    fun removeLayer(id: String) = rtmpStreamer.removeLayer(id)
+    fun toggleLayerVisible(id: String) = rtmpStreamer.toggleLayerVisible(id)
+    fun moveLayerUp(id: String) = rtmpStreamer.moveLayerUp(id)
+    fun moveLayerDown(id: String) = rtmpStreamer.moveLayerDown(id)
+
     // ── Idea 10 — virtual stream platform (record to file instead of RTMP) ──
     // Dev toggle: when ON, "Go Live" records the encoder output to a file instead of pushing RTMP.
     @Volatile var virtualStreamToFile: Boolean = false

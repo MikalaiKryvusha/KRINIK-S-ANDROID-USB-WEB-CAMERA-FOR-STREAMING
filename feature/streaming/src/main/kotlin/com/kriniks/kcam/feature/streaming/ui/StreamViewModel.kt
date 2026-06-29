@@ -43,6 +43,25 @@ class StreamViewModel @Inject constructor(
     /** Current manual video rotation (0/90/180/270) — drives the rotation menu in MainScreen. */
     val videoRotation: StateFlow<Int> = repository.videoRotation
 
+    // ── Мульти-источники (Idea 19) ──────────────────────────────────────────
+    /** Текущая сцена (слои) — для панели «Слои». */
+    val scene: StateFlow<com.kriniks.kcam.feature.streaming.scene.Scene> = repository.scene
+
+    // Монотонный счётчик для уникальных id добавляемых оверлеев в рамках сессии.
+    private var overlayCounter = 0
+
+    /** Добавить тестовый PNG-оверлей поверх сцены (первый заход — доказать пайплайн). */
+    fun addTestOverlay() {
+        overlayCounter += 1
+        repository.addTestOverlay(id = "overlay_$overlayCounter", name = "Overlay $overlayCounter")
+        KLog.i(TAG, "Added test overlay #$overlayCounter")
+    }
+
+    fun removeLayer(id: String) = repository.removeLayer(id)
+    fun toggleLayerVisible(id: String) = repository.toggleLayerVisible(id)
+    fun moveLayerUp(id: String) = repository.moveLayerUp(id)
+    fun moveLayerDown(id: String) = repository.moveLayerDown(id)
+
     /**
      * Set the manual video rotation. Blocked while streaming (changing resolution mid-RTMP breaks
      * YouTube — see Idea 06); emits a hint to the user via the snackbar in that case.

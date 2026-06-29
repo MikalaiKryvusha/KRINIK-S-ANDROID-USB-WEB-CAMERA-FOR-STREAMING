@@ -44,6 +44,7 @@ import com.kriniks.kcam.feature.capture.model.VideoSource
 import com.kriniks.kcam.feature.streaming.model.StreamState
 import com.kriniks.kcam.feature.streaming.model.isActive
 import com.kriniks.kcam.feature.streaming.model.isLive
+import com.kriniks.kcam.feature.streaming.ui.StreamLayersOverlay
 import com.kriniks.kcam.feature.streaming.ui.StreamPlatformsOverlay
 import com.kriniks.kcam.feature.streaming.rtmp.VirtualVideoSource
 import com.kriniks.kcam.feature.streaming.ui.StreamViewModel
@@ -69,8 +70,11 @@ fun MainScreen(
     val activeProfile by streamViewModel.activeProfile.collectAsStateWithLifecycle()
     val activeSource by deviceManager.activeVideoSource.collectAsStateWithLifecycle()
     val videoRotation by streamViewModel.videoRotation.collectAsStateWithLifecycle()
+    // Idea 19 — текущая сцена (слои) для панели «Слои».
+    val scene by streamViewModel.scene.collectAsStateWithLifecycle()
 
     var showPlatformsOverlay by remember { mutableStateOf(false) }
+    var showLayersOverlay by remember { mutableStateOf(false) }
 
     // TextureView from UvcPreviewView — held so we can re-start preview when camera connects
     var previewTextureView by remember { mutableStateOf<TextureView?>(null) }
@@ -249,6 +253,7 @@ fun MainScreen(
             onStartStream = { streamViewModel.startStream() },
             onStopStream = { streamViewModel.stopStream() },
             onOpenPlatforms = { showPlatformsOverlay = true },
+            onOpenLayers = { showLayersOverlay = true },
             onOpenSettings = onNavigateToSettings,
             modifier = Modifier.fillMaxSize(),
         )
@@ -266,6 +271,19 @@ fun MainScreen(
             onStartStream = { streamViewModel.startStream(); showPlatformsOverlay = false },
             buildExportJson = { streamViewModel.buildExportJson() },
             onImportJson = { streamViewModel.importProfilesFromJson(it) },
+        )
+    }
+
+    // ── Layer 6: Scene layers modal overlay (Idea 19 — мульти-источники) ──
+    if (showLayersOverlay) {
+        StreamLayersOverlay(
+            scene = scene,
+            onDismiss = { showLayersOverlay = false },
+            onAddTestOverlay = { streamViewModel.addTestOverlay() },
+            onToggleVisible = { streamViewModel.toggleLayerVisible(it) },
+            onRemove = { streamViewModel.removeLayer(it) },
+            onMoveUp = { streamViewModel.moveLayerUp(it) },
+            onMoveDown = { streamViewModel.moveLayerDown(it) },
         )
     }
 }

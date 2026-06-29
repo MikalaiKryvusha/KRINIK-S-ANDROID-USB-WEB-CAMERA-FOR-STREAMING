@@ -38,6 +38,9 @@ import com.kriniks.kcam.core.logging.KLog
 import com.kriniks.kcam.data.profiles.model.StreamProfile
 import com.kriniks.kcam.feature.streaming.model.StreamState
 import com.kriniks.kcam.feature.streaming.model.isActive
+import com.kriniks.kcam.feature.streaming.scene.Layer
+import com.kriniks.kcam.feature.streaming.scene.Scene
+import com.kriniks.kcam.feature.streaming.scene.SceneCompositor
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +89,13 @@ class RtmpStreamer @Inject constructor(
     // (re)init so the chosen angle survives preview restarts, stream start, and standby swaps.
     private val _videoRotation = MutableStateFlow(0)
     val videoRotation: StateFlow<Int> = _videoRotation.asStateFlow()
+
+    // ── Мульти-источники (Idea 19) ──────────────────────────────────────────
+    // Текущая рабочая область (сцена) — упорядоченный список слоёв. Камера = базовый слой (низ),
+    // слои-картинки = оверлеи поверх (мапятся на стек фильтров RootEncoder через SceneCompositor).
+    // UI наблюдает этот StateFlow; правки идут через методы ниже, каждая переприменяет оверлеи.
+    private val _scene = MutableStateFlow(Scene.default())
+    val scene: StateFlow<Scene> = _scene.asStateFlow()
 
     // Base (landscape-reference) encoder size used for the live preview before a stream profile is
     // applied. rotatedDims() swaps it to portrait for 90/270.
@@ -360,6 +370,7 @@ class RtmpStreamer @Inject constructor(
             // autoHandleOrientation=false: USB webcam is physically fixed — sensor rotation
             // should NOT rotate the video feed. AspectRatioMode.Adjust handles letterboxing.
             applyVideoRotation()  // apply any manual rotation chosen via the rotation menu
+            applySceneOverlays()  // Idea 19: re-apply scene overlay layers onto the GL filter stack
             KLog.d(TAG, "startPreview: done — glRunning=${stream.getGlInterface().isRunning}")
             scheduleVideoSourceRetryIfNeeded(stream)
         } catch (e: Exception) {
@@ -392,6 +403,7 @@ class RtmpStreamer @Inject constructor(
                 try {
                     stream.changeVideoSource(src)
                     applyVideoRotation()  // re-apply manual rotation once GL is up
+                    applySceneOverlays()  // Idea 19: re-apply scene overlays once GL is up
                 } catch (e: Exception) {
                     KLog.e(TAG, "Failed to re-trigger VideoSource after GL ready", e)
                 }
@@ -436,6 +448,7 @@ class RtmpStreamer @Inject constructor(
                     stream.startPreview(tv)
                     gl.setAspectRatioMode(AspectRatioMode.Adjust)
                     applyVideoRotation()  // keep manual rotation after stream-start preview re-attach
+                    applySceneOverlays()  // Idea 19: keep scene overlays after preview re-attach
                     KLog.d(TAG, "schedulePreviewRestoreAfterStream: live preview attached during streaming (tv=${tv.width}x${tv.height})")
                 } catch (e: Exception) {
                     KLog.e(TAG, "schedulePreviewRestoreAfterStream: failed to attach preview", e)
@@ -732,6 +745,50 @@ class RtmpStreamer @Inject constructor(
             KLog.e(TAG, "exitStandby: failed to restore camera source", e)
         }
     }
+
+    // ── Мульти-источники: операции над сценой (Idea 19) ─────────────────────
+
+    /**
+     * Переприменить оверлеи текущей сцены на стек фильтров GL. Зовётся на тех же хуках, что и
+     * [applyVideoRotation] (превью поднялось / GL готов / превью переподцеплено при стриме), а также
+     * после каждой правки сцены. No-op до запуска GL — переприменится на следующем хуке.
+     */
+    private fun applySceneOverlays() {
+        SceneCompositor.apply(rtmpStream?.getGlInterface(), _scene.value)
+    }
+
+    // Общий помощник: применить трансформацию к сцене, опубликовать и переприменить оверлеи.
+    private fun mutateScene(transform: (Scene) -> Scene) {
+        _scene.value = transform(_scene.value)
+        applySceneOverlays()
+    }
+
+    /**
+     * Добавить слой-картинку (PNG-оверлей) НА ВЕРХ сцены. [bitmap] уже готов (из файла или
+     * сгенерирован). [id] должен быть уникальным (для toggle/remove/reorder).
+     */
+    fun addImageOverlay(id: String, name: String, bitmap: Bitmap) {
+        mutateScene { it.addOnTop(Layer.Image(id = id, name = name, bitmap = bitmap)) }
+        KLog.i(TAG, "Scene: added image overlay '$name' (id=$id)")
+    }
+
+    /** Удалить слой по id (камеру UI удалять не предлагает — первый заход). */
+    fun removeLayer(id: String) {
+        mutateScene { it.remove(id) }
+        KLog.i(TAG, "Scene: removed layer id=$id")
+    }
+
+    /** Переключить видимость слоя по id (включает/выключает его в компоновке). */
+    fun toggleLayerVisible(id: String) {
+        mutateScene { it.toggleVisible(id) }
+        KLog.d(TAG, "Scene: toggled visibility of layer id=$id")
+    }
+
+    /** Поднять слой на одну позицию выше в z-order (ближе к зрителю). */
+    fun moveLayerUp(id: String) = mutateScene { it.moveUp(id) }
+
+    /** Опустить слой на одну позицию ниже в z-order. */
+    fun moveLayerDown(id: String) = mutateScene { it.moveDown(id) }
 
     val isStreaming: Boolean get() = rtmpStream?.isStreaming == true
     val isOnPreview: Boolean get() = rtmpStream?.isOnPreview == true

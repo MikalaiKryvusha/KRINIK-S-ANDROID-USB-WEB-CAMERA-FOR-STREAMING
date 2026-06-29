@@ -55,6 +55,7 @@ fun FloatingRadialMenu(
     onStartStream: () -> Unit,
     onStopStream: () -> Unit,
     onOpenPlatforms: () -> Unit,
+    onOpenLayers: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -66,6 +67,8 @@ fun FloatingRadialMenu(
         } else {
             add(RadialAction(Icons.Default.RadioButtonChecked, "Go Live", AcidPink, onStartStream))
         }
+        // Idea 19 — панель «Слои/Сцена» (мульти-источники).
+        add(RadialAction(Icons.Default.Layers, "Layers", Color.White, onOpenLayers))
         add(RadialAction(Icons.Default.Wifi, "Platforms", Color.White, onOpenPlatforms))
         add(RadialAction(Icons.Default.Settings, "Settings", Color.White, onOpenSettings))
     }
