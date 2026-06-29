@@ -67,6 +67,21 @@ class StreamingRepository @Inject constructor(
     fun setVirtualStreamToFile(enabled: Boolean) { virtualStreamToFile = enabled }
 
     val isRecording: Boolean get() = rtmpStreamer.isRecording
+
+    // ── Idea 22 — удобства для debug-команд автоматизатора (harness) ─────────
+    /**
+     * «Go Live» для харнеса: если включён stream-to-file — пишем энкодер в MP4 (вернёт путь), иначе —
+     * пушим RTMP по [profile] (в харнесе обычно не используем). [profile] задаёт разрешение/битрейт
+     * (по умолчанию — дефолтный профиль). Вызывается из CMD-receiver автоматизатора.
+     */
+    fun goLiveHarness(profile: StreamProfile = StreamProfile()): String? =
+        if (virtualStreamToFile) rtmpStreamer.startRecordToFile(profile)
+        else { rtmpStreamer.startStream(profile); null }
+
+    /** Остановить активный вывод (запись или стрим). */
+    fun stopAll() {
+        if (rtmpStreamer.isRecording) rtmpStreamer.stopRecordToFile() else rtmpStreamer.stopStream()
+    }
     fun startRecordToFile(profile: StreamProfile): String? = rtmpStreamer.startRecordToFile(profile)
     fun stopRecordToFile() = rtmpStreamer.stopRecordToFile()
 
