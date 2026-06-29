@@ -34,7 +34,11 @@ private const val VIRTUAL_FPS = 30L
 private const val FRAME_INTERVAL_MS = 1000L / VIRTUAL_FPS
 private const val ACID_PINK = 0xFFFF1A8C.toInt()
 
-class VirtualVideoSource : VideoSource(), RotatableSource {
+class VirtualVideoSource : VideoSource(), RotatableSource, LastFrameProvider {
+
+    // Interview #004: the prerendered pattern serves as the "last frame" to freeze on at a source
+    // drop. (The moving sweep bar isn't included, but a frozen circle/grid is a fine freeze frame.)
+    override fun lastFrame(): Bitmap? = staticFrame
 
     private var surface: Surface? = null
     private var drawThread: HandlerThread? = null

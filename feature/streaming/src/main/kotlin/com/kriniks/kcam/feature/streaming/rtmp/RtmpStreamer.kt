@@ -675,8 +675,10 @@ class RtmpStreamer @Inject constructor(
      */
     fun enterStandby() {
         val stream = rtmpStream ?: return
-        if (!stream.isStreaming) {
-            KLog.d(TAG, "enterStandby: not streaming — ignoring")
+        // Triggered for an active RTMP stream OR a file recording (harness, Idea 10) — both run the
+        // encoder and benefit from the freeze→standby on a source drop. (Recording reuses Live state.)
+        if (!stream.isStreaming && !stream.isRecording) {
+            KLog.d(TAG, "enterStandby: not streaming/recording — ignoring")
             return
         }
         if (inStandby) {
@@ -685,8 +687,16 @@ class RtmpStreamer @Inject constructor(
         }
         // Render the placeholder once at the encoder size, then cache for future dropouts.
         val bmp = standbyBitmap ?: StandbyFrameRenderer.render().also { standbyBitmap = it }
+        // Interview #004: grab the LAST visible frame so we can FREEZE on it for 5s instead of jumping
+        // straight to the standby card — a brief dropout then looks like a frozen picture, and if the
+        // source returns within 5s (exitStandby) the viewer never sees the standby card at all.
+        // Prefer the source's own last frame (reliable; the preview TextureView is often already torn
+        // down by the UI on a drop → getBitmap() null). Fall back to the preview, then to no-freeze.
+        val frozen = (currentVideoSource as? LastFrameProvider)?.lastFrame()
+            ?: runCatching { lastPreviewTextureView?.get()?.bitmap }.getOrNull()
         try {
-            val src = StandbyVideoSource(bmp)
+            // With a captured frame → freeze→timeout→fade source; without one → instant standby card.
+            val src = if (frozen != null) FreezeStandbyVideoSource(frozen, bmp) else StandbyVideoSource(bmp)
             // changeVideoSource: stops/releases the dead camera source and starts this one on the
             // live GL SurfaceTexture, inited with the encoder's dimensions.
             stream.changeVideoSource(src)
@@ -695,7 +705,7 @@ class RtmpStreamer @Inject constructor(
             applyVideoRotation()
             currentVideoSource = src
             inStandby = true
-            KLog.i(TAG, "Entered standby — placeholder frame now feeding the stream")
+            KLog.i(TAG, "Entered standby — ${if (frozen != null) "freezing last frame 5s then" else ""} placeholder feeding the stream")
         } catch (e: Exception) {
             KLog.e(TAG, "enterStandby: failed to swap to standby source", e)
         }

@@ -37,6 +37,11 @@ class MainActivity : ComponentActivity() {
     // only while the "ADB rotation" dev toggle is ON (Idea 07) — available in ANY build, not just debug.
     private var adbOrientationReceiver: BroadcastReceiver? = null
 
+    // Receiver that lets the AI harness simulate the virtual camera connecting/disconnecting over ADB
+    // (Interview #004 testing): SET_VIRTUAL_CAM state=off → source drop → standby/freeze; state=on →
+    // source back → exitStandby. Lets us test the dropout flow WITHOUT a physical USB camera.
+    private var virtualCamReceiver: BroadcastReceiver? = null
+
     private val permissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
@@ -69,6 +74,32 @@ class MainActivity : ComponentActivity() {
         setAdbRotationEnabled(DevSettings.isAdbRotation(this))
         deviceManager.setVirtualCamera(DevSettings.isVirtualCamera(this))
         streamingRepository.setVirtualStreamToFile(DevSettings.isVirtualStream(this))
+        registerVirtualCamControl()
+    }
+
+    /**
+     * Harness control (Interview #004): toggle the virtual camera over ADB to simulate a source
+     * disconnect/reconnect without a physical USB camera.
+     *   adb shell am broadcast -a com.kriniks.kcam.SET_VIRTUAL_CAM --es state off -p <pkg>   # drop
+     *   adb shell am broadcast -a com.kriniks.kcam.SET_VIRTUAL_CAM --es state on  -p <pkg>   # restore
+     * state=off → activeSource None → RtmpStreamer.enterStandby (freeze→timeout→standby);
+     * state=on  → virtual source back → exitStandby (live).
+     */
+    private fun registerVirtualCamControl() {
+        if (virtualCamReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val on = intent?.getStringExtra("state") == "on"
+                KLog.i("MainActivity", "ADB virtual-cam: ${if (on) "ON (reconnect)" else "OFF (disconnect)"}")
+                deviceManager.setVirtualCamera(on)
+            }
+        }
+        ContextCompat.registerReceiver(
+            this, receiver,
+            IntentFilter("com.kriniks.kcam.SET_VIRTUAL_CAM"),
+            ContextCompat.RECEIVER_EXPORTED,
+        )
+        virtualCamReceiver = receiver
     }
 
     /**
@@ -122,6 +153,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         adbOrientationReceiver?.let { runCatching { unregisterReceiver(it) } }
+        virtualCamReceiver?.let { runCatching { unregisterReceiver(it) } }
     }
 
     private fun requestRequiredPermissions() {
