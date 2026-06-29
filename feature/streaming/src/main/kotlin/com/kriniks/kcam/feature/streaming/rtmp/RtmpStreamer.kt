@@ -559,22 +559,20 @@ class RtmpStreamer @Inject constructor(
         isStreamSetupInProgress = true
         try {
             if (stream.isOnPreview) stream.stopPreview()
-            // Bug 10 experiment #2 (harness): the encoder ALWAYS fitXY-stretches the GL scene to the
-            // encoder canvas. So the canvas aspect MUST match the rotated content's aspect, otherwise
-            // distortion. Exp#1 proved setStreamRotation rotates with CORRECT orientation, but a
-            // landscape (16:9) canvas stretched the rotated 9:16 content → horizontal oval. Fix: for
-            // 90/270 make the canvas PORTRAIT (swap W↔H) so the rotated 9:16 content fills 9:16 → 1:1,
-            // no stretch. setStreamRotation does the actual geometric rotation.
+            // Bug 10 — variant C: the SOURCE rotates its own 16:9 frame into a portrait buffer; the
+            // encoder does NO rotation (rotation=0 → SizeCalculator.getScale returns 1,1 → zero
+            // distortion). We just set a PORTRAIT encoder canvas for 90/270 and tell the source which
+            // way to rotate. No setStreamRotation / encoder rotation — that path distorts our
+            // non-camera source. (Krinik's model: WE virtually rotate the incoming stream.)
             val deg = _videoRotation.value
             val portrait = deg == 90 || deg == 270
             val encW = if (portrait) profile.videoHeight else profile.videoWidth // 90/270 → 1080
             val encH = if (portrait) profile.videoWidth else profile.videoHeight // 90/270 → 1920
+            (currentVideoSource as? RotatableSource)?.setOutputRotation(deg)
             val vp = stream.prepareVideo(
-                encW, encH,
-                profile.videoBitrateBps, profile.videoFps, 2,
+                encW, encH, profile.videoBitrateBps, profile.videoFps, 2,
             )
-            stream.getGlInterface().setCameraOrientation(0)   // Bug 02 A: source upright
-            stream.getGlInterface().setStreamRotation(deg)    // true geometric rotation of the scene
+            stream.getGlInterface().setCameraOrientation(0) // Bug 02 A: keep source upright (no input rot)
             val ap = stream.prepareAudio(44100, true, 128_000)
             if (!vp || !ap) {
                 KLog.e(TAG, "startRecordToFile: prepare failed (video=$vp audio=$ap)")
@@ -584,7 +582,7 @@ class RtmpStreamer @Inject constructor(
             }
             _state.value = StreamState.Live()  // reuse Live state so the UI shows the LIVE badge
             stream.startRecord(path, recordListener)
-            KLog.i(TAG, "startRecordToFile → $path (uiRot=${deg}° via setStreamRotation, enc ${encW}x${encH} ${if (portrait) "portrait" else "landscape"})")
+            KLog.i(TAG, "startRecordToFile → $path (uiRot=${deg}° via source-rotation/variant C, enc ${encW}x${encH})")
             schedulePreviewRestoreAfterStream(stream)
             return path
         } catch (e: Exception) {
