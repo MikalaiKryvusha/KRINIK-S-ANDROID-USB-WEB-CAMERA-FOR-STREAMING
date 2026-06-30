@@ -187,6 +187,23 @@ Settings → About. Доступен в ЛЮБОЙ сборке (release == debu
 Стиль: `feat:`, `fix:`, `docs:`, `refactor:`, `ci:` + одна строка что сделано.
 Тег при завершении фазы: `v0.N` (Phase 0 = v0.1, Phase 1 = v0.2, ...).
 
+## Push / аутентификация в GitHub (git + gh)
+
+Remote — HTTPS (`https://github.com/MikalaiKryvusha/KrinikCam.git`). `gh` CLI авторизован
+(аккаунт `MikalaiKryvusha`, токен в keyring, scopes `repo`/`workflow`/`gist`/`read:org`), но
+**git напрямую кредов не видит** и в неинтерактивной среде падает с
+`fatal: could not read Username for 'https://github.com': Device not configured`.
+
+**Фикс (выполнен 2026-06-30, разовый):**
+```bash
+gh auth setup-git    # прописывает gh как git credential-helper для github.com
+git push origin main # дальше пушит без интерактива, токеном gh
+```
+- Это НЕ про 2FA: двухфакторка HTTPS-пуш не чинит и не ломает — нужен именно токен/credential-helper.
+- Если снова `could not read Username` — повтори `gh auth setup-git`; проверь `gh auth status`.
+- При `non-fast-forward` — `git pull --rebase`, затем повтор `git push`.
+- `node tools/commit.mjs "..."` бампит build-номер, коммитит и пушит (использует тот же git/gh).
+
 ---
 
 ## Инструменты проекта
